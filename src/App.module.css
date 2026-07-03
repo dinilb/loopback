@@ -1,6 +1,7 @@
 /* Loopback — Amplemarket-inspired tokens */
 
 :global(:root) {
+  color-scheme: light !important;
   --ink: #111111;
   --canvas: #ffffff;
   --cream: #f6f5f3;
@@ -9,6 +10,7 @@
   --stone: #b1b1af;
   --hair: rgba(17,17,17,0.08);
   --charcoal: #272625;
+  --indigo: #10054d;
 
   --petal: #ffd7f0;
   --mint: #b7efb2;
@@ -20,6 +22,7 @@
   --radius-card: 12px;
   --radius-btn: 8px;
   --shadow-inset: rgba(17,17,17,0.05) 0 0 0 1px inset;
+  --shadow-soft: rgba(17,17,17,0.04) 0 1px 2px 0, rgba(17,17,17,0.04) 0 4px 8px 0;
   --font: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -27,10 +30,11 @@
   margin: 0;
   padding: 0;
   height: 100%;
-  background: var(--cream);
-  color: var(--ink);
+  background: #f6f5f3 !important;
+  color: #111111 !important;
   font-family: var(--font);
   font-weight: 400;
+  color-scheme: light !important;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -42,6 +46,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  background: transparent;
+  color: var(--ink);
 }
 
 /* ============ Header ============ */
@@ -51,6 +57,7 @@
   justify-content: space-between;
   padding: 16px 20px;
   background: var(--canvas);
+  color: var(--ink);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-inset);
 }
@@ -89,8 +96,8 @@
 }
 .primary, .secondary {
   font-family: var(--font);
-  font-size: 16px;
-  font-weight: 400;
+  font-size: 15px;
+  font-weight: 500;
   border-radius: var(--radius-btn);
   padding: 12px 20px;
   border: none;
@@ -101,51 +108,32 @@
   background: var(--ink);
   color: var(--canvas);
 }
-.primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-.primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.primary:hover:not(:disabled) { transform: translateY(-1px); }
+.primary:disabled { opacity: 0.7; cursor: not-allowed; }
 .secondary {
   background: var(--pearl);
   color: var(--ink);
 }
-.secondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ============ Status ============ */
-.status {
-  padding: 14px 20px;
-  background: var(--canvas);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-inset);
-  font-size: 14px;
-  color: var(--ink);
-  line-height: 1.3;
-  min-height: 20px;
-}
+.secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ============ Grid ============ */
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.15fr;
   gap: 20px;
   align-items: start;
 }
 
 .inbox, .artifacts {
   background: var(--canvas);
+  color: var(--ink);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-inset);
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-height: calc(100vh - 260px);
+  gap: 14px;
+  max-height: calc(100vh - 180px);
 }
 
 .panelHeader {
@@ -156,8 +144,8 @@
 .eyebrow {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-weight: 500;
+  letter-spacing: 0.6px;
+  font-weight: 600;
   color: var(--ash);
 }
 .count {
@@ -173,23 +161,144 @@
   padding-right: 4px;
 }
 
+/* ============ Agent Activity Card ============ */
+.agentCard {
+  background: var(--indigo);
+  color: #ffffff;
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-soft);
+}
+.agentTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.agentHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.spinner, .spinnerActive {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: rgba(255,255,255,0.05);
+}
+.spinnerActive {
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: var(--aqua);
+  animation: spin 1s linear infinite;
+}
+.spinnerActive .spinnerIcon {
+  animation: counterSpin 1s linear infinite;
+}
+.spinnerIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+.agentEyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+}
+.agentAction {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  color: #ffffff;
+}
+.agentStats {
+  display: flex;
+  gap: 12px;
+}
+.agentStat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 52px;
+}
+.agentStat > span {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--aqua);
+  font-variant-numeric: tabular-nums;
+}
+.agentStat > label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 4px;
+}
+.thoughts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.thoughtPlaceholder {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  padding: 6px 0;
+}
+.thought {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  animation: slideIn 0.25s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.thoughtIcon {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+.thoughtText {
+  color: rgba(255,255,255,0.9);
+}
+
 /* ============ Emails ============ */
 .email {
   padding: 12px 14px;
   border-radius: 8px;
   background: var(--cream);
+  color: var(--ink);
   border: 1px solid transparent;
-  transition: background 0.25s cubic-bezier(0.23, 1, 0.32, 1), border 0.25s ease;
+  transition: background 0.25s cubic-bezier(0.23, 1, 0.32, 1), border 0.25s ease, opacity 0.25s ease;
 }
 .emailReading {
   background: var(--violet);
-  border-color: rgba(17,17,17,0.12);
-  transform: scale(1.005);
+  border-color: rgba(17,17,17,0.15);
+  box-shadow: 0 0 0 2px rgba(226, 221, 253, 0.6);
 }
 .emailRead {
   background: var(--canvas);
   border-color: var(--hair);
-  opacity: 0.85;
+  opacity: 0.55;
+}
+.emailRead .emailSubject,
+.emailRead .emailBody {
+  text-decoration: line-through;
+  text-decoration-color: rgba(17,17,17,0.4);
 }
 .emailMeta {
   display: flex;
@@ -200,12 +309,17 @@
 }
 .emailFrom {
   font-weight: 500;
+  color: var(--ink);
 }
+.emailRead .emailFrom { color: var(--ash); }
 .emailStatus {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.6px;
+  font-weight: 600;
 }
+.emailReading .emailStatus { color: var(--indigo); }
+.emailRead .emailStatus { color: var(--ash); }
 .emailSubject {
   font-size: 14px;
   font-weight: 500;
@@ -223,6 +337,26 @@
   overflow: hidden;
 }
 
+/* ============ Skeleton ============ */
+.skeleton {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skelLine {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #ecebea 0%, #dbdad8 50%, #ecebea 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.skelShort { width: 30%; }
+.skelMed { width: 65%; }
+.skelLong { width: 90%; }
+
 /* ============ Artifacts ============ */
 .empty {
   padding: 24px 16px;
@@ -235,6 +369,7 @@
 .card {
   padding: 16px 18px;
   border-radius: var(--radius-card);
+  color: var(--ink);
   animation: slideIn 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .bugCard { background: var(--petal); }
@@ -242,7 +377,7 @@
 .questionCard { background: var(--canary); }
 .prCard {
   background: var(--charcoal);
-  color: var(--canvas);
+  color: #ffffff;
 }
 .reportCard {
   background: var(--violet);
@@ -257,26 +392,28 @@
 .cardType {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-weight: 500;
+  letter-spacing: 0.6px;
+  font-weight: 600;
 }
 .cardSev {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 9999px;
-  background: rgba(17,17,17,0.08);
-  font-weight: 500;
+  background: rgba(17,17,17,0.1);
+  font-weight: 600;
+  color: var(--ink);
 }
 .prCard .cardSev {
-  background: rgba(255,255,255,0.12);
-  color: var(--canvas);
+  background: rgba(255,255,255,0.14);
+  color: #ffffff;
 }
 .cardTitle {
-  font-size: 18px;
-  font-weight: 400;
-  line-height: 1.2;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.25;
   letter-spacing: -0.3px;
   margin-bottom: 6px;
+  color: inherit;
 }
 .cardSummary {
   font-size: 13px;
@@ -284,14 +421,13 @@
   color: rgba(17,17,17,0.75);
   margin-bottom: 8px;
 }
+.prCard .cardSummary { color: rgba(255,255,255,0.75); }
 .cardMeta {
   font-size: 12px;
-  color: rgba(17,17,17,0.6);
+  color: rgba(17,17,17,0.65);
   line-height: 1.4;
 }
-.prCard .cardMeta {
-  color: rgba(255,255,255,0.7);
-}
+.prCard .cardMeta { color: rgba(255,255,255,0.7); }
 .prFiles {
   margin-top: 4px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -306,9 +442,7 @@
   text-decoration: none;
   word-break: break-all;
 }
-.prLink:hover {
-  text-decoration: underline;
-}
+.prLink:hover { text-decoration: underline; }
 
 .reportStats {
   display: grid;
@@ -321,12 +455,12 @@
   flex-direction: column;
   align-items: center;
   padding: 8px 4px;
-  background: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.55);
   border-radius: 8px;
 }
 .reportStats strong {
-  font-size: 24px;
-  font-weight: 400;
+  font-size: 22px;
+  font-weight: 500;
   letter-spacing: -0.5px;
   line-height: 1;
   color: var(--ink);
@@ -334,9 +468,10 @@
 .reportStats span {
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.6px;
   color: var(--ash);
   margin-top: 4px;
+  font-weight: 600;
 }
 
 /* ============ Footer ============ */
@@ -352,14 +487,20 @@
 }
 
 @keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes counterSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Responsive */

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { sendMessageStream } from './api';
 import { INBOX, type Email } from './inbox';
 import styles from './App.module.css';
@@ -34,21 +34,69 @@ interface Report {
   topPain: string;
 }
 
+interface Thought {
+  id: number;
+  icon: string;
+  text: string;
+  timestamp: number;
+}
+
+const TOOL_META: Record<string, { icon: string; label: string }> = {
+  booting: { icon: '⚡', label: 'Waking up' },
+  list_inbox: { icon: '📬', label: 'Connecting to inbox' },
+  read_email: { icon: '📖', label: 'Reading email' },
+  create_ticket: { icon: '🎫', label: 'Creating ticket' },
+  create_github_pr: { icon: '🔗', label: 'Drafting PR' },
+  finalize_report: { icon: '📊', label: 'Writing report' },
+  done: { icon: '✅', label: 'Done' },
+};
+
+function fmtElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return `${mm}:${ss}`;
+}
+
 export default function App() {
+  const [inboxLoaded, setInboxLoaded] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, EmailStatus>>({});
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [pr, setPr] = useState<PR | null>(null);
   const [report, setReport] = useState<Report | null>(null);
-  const [currentStatus, setCurrentStatus] = useState<string>('Ready. Click "Run Loopback" to process the inbox.');
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
+  const [currentTool, setCurrentTool] = useState<string>('idle');
+  const [toolCallCount, setToolCallCount] = useState<number>(0);
   const [running, setRunning] = useState(false);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState<number>(0);
+  const thoughtIdRef = useRef<number>(0);
   const conversationIdRef = useRef<string>(crypto.randomUUID());
 
+  // Elapsed timer
+  useEffect(() => {
+    if (!running || startedAt == null) return;
+    const iv = setInterval(() => setElapsed(Date.now() - startedAt), 100);
+    return () => clearInterval(iv);
+  }, [running, startedAt]);
+
+  const addThought = useCallback((icon: string, text: string) => {
+    thoughtIdRef.current += 1;
+    const t: Thought = { id: thoughtIdRef.current, icon, text, timestamp: Date.now() };
+    setThoughts((prev) => [...prev, t].slice(-8));
+  }, []);
+
   const reset = useCallback(() => {
+    setInboxLoaded(false);
     setStatuses({});
     setTickets([]);
     setPr(null);
     setReport(null);
-    setCurrentStatus('Ready. Click "Run Loopback" to process the inbox.');
+    setThoughts([]);
+    setCurrentTool('idle');
+    setToolCallCount(0);
+    setStartedAt(null);
+    setElapsed(0);
     conversationIdRef.current = crypto.randomUUID();
   }, []);
 
@@ -56,22 +104,28 @@ export default function App() {
     if (running) return;
     reset();
     setRunning(true);
-    setCurrentStatus('Loopback is reading your inbox…');
+    setCurrentTool('booting');
+    setStartedAt(Date.now());
+    addThought('⚡', 'Booting Loopback agent on EdgeOne runtime…');
 
     sendMessageStream(
       'run',
       {
         onTextDelta: () => {},
         onToolCalled: (tool, args) => {
+          setCurrentTool(tool);
+          setToolCallCount((n) => n + 1);
+
           if (tool === 'list_inbox') {
-            setCurrentStatus(`📬 Loaded ${INBOX.length} unread emails. Reading them one by one…`);
+            setInboxLoaded(true);
+            addThought('📬', `Connected to inbox. Found ${INBOX.length} unread emails.`);
             return;
           }
+
           if (tool === 'read_email' && args?.id) {
             const emailId = args.id as string;
             const email = INBOX.find((e) => e.id === emailId);
             setStatuses((prev) => {
-              // Mark all others reading→read; mark this one reading
               const next: Record<string, EmailStatus> = {};
               for (const [k, v] of Object.entries(prev)) {
                 next[k] = v === 'reading' ? 'read' : v;
@@ -79,9 +133,10 @@ export default function App() {
               next[emailId] = 'reading';
               return next;
             });
-            setCurrentStatus(`📖 Reading: "${email?.subject ?? emailId}" — from ${email?.from ?? '?'}`);
+            addThought('📖', `Reading email from ${email?.from ?? '?'} — "${email?.subject ?? emailId}"`);
             return;
           }
+
           if (tool === 'create_ticket') {
             const t: Ticket = {
               id: `LOOP-${(args?.type ?? 'X').toString().toUpperCase().slice(0, 4)}-${Math.floor(Math.random() * 900 + 100)}`,
@@ -93,8 +148,8 @@ export default function App() {
               clusterSize: (args?.cluster_size as number) ?? 1,
             };
             setTickets((prev) => [...prev, t]);
-            setCurrentStatus(`🎫 Created ${t.type.toUpperCase()} ticket: "${t.title}" (${t.clusterSize} users, ${t.severity})`);
-            // Mark cited emails as read
+            const emoji = t.type === 'bug' ? '🐛' : t.type === 'feature' ? '✨' : '❓';
+            addThought(emoji, `Clustered ${t.clusterSize} email${t.clusterSize !== 1 ? 's' : ''} → ${t.type} ticket "${t.title}" (${t.severity})`);
             setStatuses((prev) => {
               const next = { ...prev };
               for (const id of t.sourceIds) {
@@ -104,10 +159,11 @@ export default function App() {
             });
             return;
           }
+
           if (tool === 'create_github_pr') {
             const p: PR = {
-              url: `https://github.com/loopback-demo/app/pull/${Math.floor(Math.random() * 900 + 100)}`,
-              number: Math.floor(Math.random() * 900 + 100),
+              url: (args?.pr_url as string) ?? `https://github.com/loopback-demo/app/pull/${Math.floor(Math.random() * 900 + 100)}`,
+              number: (args?.pr_number as number) ?? Math.floor(Math.random() * 900 + 100),
               title: args?.title ?? 'Fix',
               ticketId: args?.ticket_id ?? '',
               files: (args?.files_changed as string[]) ?? [],
@@ -115,9 +171,10 @@ export default function App() {
               deletions: (args?.deletions as number) ?? 0,
             };
             setPr(p);
-            setCurrentStatus(`🔗 Drafted GitHub PR #${p.number}: "${p.title}"`);
+            addThought('🔗', `Drafted GitHub PR: "${p.title}" — +${p.additions} −${p.deletions}`);
             return;
           }
+
           if (tool === 'finalize_report') {
             const r: Report = {
               emails: (args?.emails_processed as number) ?? 0,
@@ -128,12 +185,12 @@ export default function App() {
               topPain: (args?.top_pain as string) ?? '',
             };
             setReport(r);
-            setCurrentStatus(`✅ Done. ${r.emails} emails → ${r.bugs} bugs, ${r.features} features, ${r.questions} questions, ${r.prs} PR${r.prs !== 1 ? 's' : ''}.`);
+            addThought('📊', `Summary written. Top pain: ${r.topPain}`);
           }
         },
         onDone: () => {
           setRunning(false);
-          // Mark any remaining "reading" emails as "read"
+          setCurrentTool('done');
           setStatuses((prev) => {
             const next: Record<string, EmailStatus> = {};
             for (const [k, v] of Object.entries(prev)) {
@@ -141,15 +198,16 @@ export default function App() {
             }
             return next;
           });
+          addThought('✅', 'Run complete.');
         },
         onError: (err) => {
           setRunning(false);
-          setCurrentStatus(`⚠️ Error: ${err.message}`);
+          addThought('⚠️', `Error: ${err.message}`);
         },
       },
       conversationIdRef.current,
     );
-  }, [running, reset]);
+  }, [running, reset, addThought]);
 
   const bugCount = tickets.filter((t) => t.type === 'bug').length;
   const featCount = tickets.filter((t) => t.type === 'feature').length;
@@ -173,22 +231,41 @@ export default function App() {
         </div>
       </header>
 
-      <div className={styles.status}>{currentStatus}</div>
-
       <main className={styles.grid}>
         <section className={styles.inbox}>
           <div className={styles.panelHeader}>
             <span className={styles.eyebrow}>Inbox</span>
-            <span className={styles.count}>{INBOX.length} unread</span>
+            <span className={styles.count}>
+              {inboxLoaded ? `${INBOX.length} unread` : running ? 'connecting…' : '—'}
+            </span>
           </div>
           <div className={styles.emailList}>
-            {INBOX.map((e) => (
+            {!inboxLoaded && !running && (
+              <div className={styles.empty}>Click "Run Loopback" to start.</div>
+            )}
+            {!inboxLoaded && running && (
+              <>
+                <SkeletonEmail />
+                <SkeletonEmail />
+                <SkeletonEmail />
+                <SkeletonEmail />
+              </>
+            )}
+            {inboxLoaded && INBOX.map((e) => (
               <EmailRow key={e.id} email={e} status={statuses[e.id] ?? 'unread'} />
             ))}
           </div>
         </section>
 
         <section className={styles.artifacts}>
+          <AgentActivity
+            tool={currentTool}
+            running={running}
+            elapsed={elapsed}
+            toolCallCount={toolCallCount}
+            thoughts={thoughts}
+          />
+
           <div className={styles.panelHeader}>
             <span className={styles.eyebrow}>Artifacts</span>
             <span className={styles.count}>
@@ -197,9 +274,9 @@ export default function App() {
           </div>
 
           <div className={styles.artifactList}>
-            {tickets.length === 0 && !pr && (
+            {tickets.length === 0 && !pr && !running && (
               <div className={styles.empty}>
-                Tickets will appear here as Loopback clusters your inbox.
+                Tickets appear here as Loopback clusters your inbox.
               </div>
             )}
             {tickets.map((t) => (
@@ -218,9 +295,77 @@ export default function App() {
   );
 }
 
+function AgentActivity({
+  tool,
+  running,
+  elapsed,
+  toolCallCount,
+  thoughts,
+}: {
+  tool: string;
+  running: boolean;
+  elapsed: number;
+  toolCallCount: number;
+  thoughts: Thought[];
+}) {
+  const meta = TOOL_META[tool] ?? { icon: '💭', label: tool };
+  const active = running && tool !== 'done';
+  return (
+    <div className={styles.agentCard}>
+      <div className={styles.agentTop}>
+        <div className={styles.agentHead}>
+          <div className={active ? styles.spinnerActive : styles.spinner}>
+            <div className={styles.spinnerIcon}>{meta.icon}</div>
+          </div>
+          <div>
+            <div className={styles.agentEyebrow}>Loopback Agent</div>
+            <div className={styles.agentAction}>{meta.label}{active ? '…' : ''}</div>
+          </div>
+        </div>
+        <div className={styles.agentStats}>
+          <div className={styles.agentStat}>
+            <span>{fmtElapsed(elapsed)}</span>
+            <label>elapsed</label>
+          </div>
+          <div className={styles.agentStat}>
+            <span>{toolCallCount}</span>
+            <label>steps</label>
+          </div>
+        </div>
+      </div>
+      <div className={styles.thoughts}>
+        {thoughts.length === 0 && (
+          <div className={styles.thoughtPlaceholder}>
+            {running ? 'Warming up…' : 'Idle. Click Run Loopback to start.'}
+          </div>
+        )}
+        {thoughts.map((t) => (
+          <div key={t.id} className={styles.thought}>
+            <span className={styles.thoughtIcon}>{t.icon}</span>
+            <span className={styles.thoughtText}>{t.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SkeletonEmail() {
+  return (
+    <div className={styles.skeleton}>
+      <div className={`${styles.skelLine} ${styles.skelShort}`} />
+      <div className={`${styles.skelLine} ${styles.skelMed}`} />
+      <div className={`${styles.skelLine} ${styles.skelLong}`} />
+    </div>
+  );
+}
+
 function EmailRow({ email, status }: { email: Email; status: EmailStatus }) {
-  const cls = [styles.email, status === 'reading' && styles.emailReading, status === 'read' && styles.emailRead]
-    .filter(Boolean).join(' ');
+  const cls = [
+    styles.email,
+    status === 'reading' && styles.emailReading,
+    status === 'read' && styles.emailRead,
+  ].filter(Boolean).join(' ');
   return (
     <div className={cls}>
       <div className={styles.emailMeta}>
