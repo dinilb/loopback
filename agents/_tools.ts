@@ -1,110 +1,125 @@
 /**
- * Agent Tools — private module (starts with _), not mapped as a route.
+ * Loopback Agent Tools — private module.
  *
- * All tool definitions live here. Each tool's `execute` body is the only
- * thing you need to change when swapping mock data for a real implementation
- * (e.g. calling a weather API, a translation service, etc.).
+ * The agent reads a seeded inbox, categorizes and clusters tickets, then
+ * produces artifacts (bug/feature tickets + a mock GitHub PR) that stream
+ * to the frontend via `tool_called` SSE events. Each tool call is the demo.
  */
 
 import { tool } from '@openai/agents';
 import { z } from 'zod';
+import { INBOX } from './_inbox';
 
-// ========== Tool: Get Weather ==========
-const getWeather = tool({
-  name: 'get_weather',
+// ========== Tool: List Inbox ==========
+const listInbox = tool({
+  name: 'list_inbox',
   description:
-    'Fetch the current weather for one specific city. ' +
-    'This tool ONLY returns weather data — it does NOT give clothing advice. ' +
-    'When the user asks "what should I wear in <city>", call this tool first to get the ' +
-    'weather, then call `get_clothing_advice` separately, passing the JSON returned here.',
-  parameters: z.object({
-    city: z.string().describe('The city to get weather for'),
-  }),
-  execute: async ({ city }) => {
-    // TODO: Replace with real weather API (e.g. OpenWeatherMap, wttr.in)
-    const mockWeather = {
-      city,
-      condition: 'Sunny',
-      temperature: { min: 18, max: 25, unit: '°C' },
-      wind: 'Light breeze',
-    };
-    return JSON.stringify(mockWeather);
+    'List all unread support emails in the inbox. Returns an array of ' +
+    '{id, from, subject, snippet}. Call this ONCE at the start of a run.',
+  parameters: z.object({}),
+  execute: async () => {
+    const summary = INBOX.map((e) => ({
+      id: e.id,
+      from: e.from,
+      subject: e.subject,
+      snippet: e.body.slice(0, 80),
+    }));
+    return JSON.stringify(summary);
   },
 });
 
-// ========== Tool: Get Clothing Advice ==========
-const getClothingAdvice = tool({
-  name: 'get_clothing_advice',
+// ========== Tool: Read Email ==========
+const readEmail = tool({
+  name: 'read_email',
   description:
-    'Give clothing advice based on a weather description that the caller already has. ' +
-    'This tool does NOT fetch weather itself — call `get_weather` first if the user asks ' +
-    'about a specific city, then pass the resulting JSON (or any plain-text weather summary) ' +
-    'into this tool\'s `weather` parameter. ' +
-    'Important: this is a separate tool from `get_weather`. There is no combined ' +
-    '"get_clothing_weather" tool — the two must be invoked one after the other.',
+    'Fetch the full body of one email by id. Call this for EVERY email in ' +
+    'the inbox so the frontend can highlight it. Returns {id, from, subject, body, receivedAt}.',
   parameters: z.object({
-    weather: z.string().describe('The weather description (JSON or plain text)'),
+    id: z.string().describe('The email id, e.g. "e07"'),
   }),
-  execute: async ({ weather }) => {
-    // TODO: Replace with more sophisticated logic or an external service
-    // Basic temperature-aware advice based on input
-    const cold = /(-\d|[0-9](?=\s*°))/;
-    const hot = /(3[0-9]|4[0-9])\s*°/;
-
-    if (hot.test(weather)) {
-      return 'Hot weather — wear short sleeves, shorts, and stay hydrated.';
-    }
-    if (cold.test(weather)) {
-      return 'Cold weather — wear a down jacket or heavy coat with scarf and gloves.';
-    }
-    return 'Moderate weather — a light jacket with casual pants and sneakers works well.';
+  execute: async ({ id }) => {
+    const email = INBOX.find((e) => e.id === id);
+    if (!email) return JSON.stringify({ error: `email ${id} not found` });
+    return JSON.stringify(email);
   },
 });
 
-// ========== Tool: Translate Text ==========
-const translateText = tool({
-  name: 'translate_text',
-  description: 'Translate text to the specified language.',
+// ========== Tool: Create Ticket ==========
+const createTicket = tool({
+  name: 'create_ticket',
+  description:
+    "Create a clustered ticket (bug, feature, or question). Call ONCE per cluster " +
+    "after you've read all emails in that cluster. Provide source_email_ids so we " +
+    "can cite users. Use severity 'P0' when 3+ users report the same issue.",
   parameters: z.object({
-    text: z.string().describe('The text to translate'),
-    target_language: z.string().describe('Target language code, e.g. en, ja, fr, ko, de'),
+    type: z.enum(['bug', 'feature', 'question']).describe('The ticket category'),
+    title: z.string().describe('Short human title, e.g. "Login broken on Safari 17"'),
+    summary: z.string().describe('One-sentence description of the issue or request'),
+    severity: z.enum(['P0', 'P1', 'P2', 'P3']).describe('Severity — P0 only when 3+ users report'),
+    source_email_ids: z.array(z.string()).describe('Email ids that fed this ticket'),
+    cluster_size: z.number().describe('How many emails were clustered here'),
   }),
-  execute: async ({ text, target_language }) => {
-    // TODO: Replace with real translation API (e.g. DeepL, Google Translate)
-    const languageNames: Record<string, string> = {
-      en: 'English',
-      ja: '日本語',
-      fr: 'Français',
-      ko: '한국어',
-      de: 'Deutsch',
-      es: 'Español',
-      ru: 'Русский',
-    };
-    const langName = languageNames[target_language] ?? target_language;
-    return `[Mock translation to ${langName}]: ${text}`;
+  execute: async ({ type, title, severity, cluster_size }) => {
+    const prefix = type === 'bug' ? 'BUG' : type === 'feature' ? 'FEAT' : 'Q';
+    const num = Math.floor(Math.random() * 900 + 100);
+    const ticketId = `LOOP-${prefix}-${num}`;
+    return JSON.stringify({
+      ticket_id: ticketId,
+      status: 'created',
+      severity,
+      cluster_size,
+      title,
+    });
   },
 });
 
-// ========== Tool: Text Statistics ==========
-const textStatistics = tool({
-  name: 'text_statistics',
-  description: 'Analyze text and return statistics like character count and word count.',
+// ========== Tool: Create GitHub PR ==========
+const createGithubPr = tool({
+  name: 'create_github_pr',
+  description:
+    'Draft a GitHub pull request for the highest-severity BUG ticket. Call ONCE ' +
+    'at the end of the run, only for P0 bugs. Provide a plausible fix summary and ' +
+    'files changed.',
   parameters: z.object({
-    text: z.string().describe('The text to analyze'),
+    ticket_id: z.string().describe('The bug ticket id, e.g. "LOOP-BUG-142"'),
+    title: z.string().describe('PR title, e.g. "Fix Safari 17 login submit handler"'),
+    description: z.string().describe('One-paragraph description of the fix'),
+    files_changed: z.array(z.string()).describe('List of files touched, e.g. ["src/auth/login.tsx"]'),
+    additions: z.number().describe('Lines added'),
+    deletions: z.number().describe('Lines deleted'),
   }),
-  execute: async ({ text }) => {
-    const charCount = text.length;
-    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-    const lineCount = text.split('\n').length;
-    return JSON.stringify({ charCount, wordCount, lineCount });
+  execute: async ({ ticket_id, title }) => {
+    const prNum = Math.floor(Math.random() * 900 + 100);
+    const url = `https://github.com/loopback-demo/app/pull/${prNum}`;
+    return JSON.stringify({
+      pr_url: url,
+      pr_number: prNum,
+      status: 'draft',
+      linked_ticket: ticket_id,
+      title,
+    });
+  },
+});
+
+// ========== Tool: Finalize Report ==========
+const finalizeReport = tool({
+  name: 'finalize_report',
+  description:
+    'Emit the final summary of this Loopback run. Call ONCE at the very end.',
+  parameters: z.object({
+    emails_processed: z.number(),
+    bugs_created: z.number(),
+    features_created: z.number(),
+    questions_created: z.number(),
+    prs_drafted: z.number(),
+    top_pain: z.string().describe('One-line description of the biggest pain point found'),
+  }),
+  execute: async (input) => {
+    return JSON.stringify({ ...input, status: 'complete' });
   },
 });
 
 // ========== Export ==========
-/**
- * Factory that returns all available tools.
- * Add new tools to this array — the agent will automatically pick them up.
- */
 export function createTools() {
-  return [getWeather, getClothingAdvice, translateText, textStatistics];
+  return [listInbox, readEmail, createTicket, createGithubPr, finalizeReport];
 }

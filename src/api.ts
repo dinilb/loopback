@@ -36,7 +36,7 @@ export interface RawSseEvent {
 
 export interface StreamCallbacks {
   onTextDelta: (delta: string) => void;
-  onToolCalled: (toolName: string) => void;
+  onToolCalled: (toolName: string, args?: any) => void;
   onDone: () => void;
   onError: (err: Error) => void;
   onRawEvent?: (event: RawSseEvent) => void;
@@ -195,7 +195,7 @@ function dispatchSseChunk(part: string, cb: StreamCallbacks, markDone: () => voi
         cb.onTextDelta(parsed.delta);
         break;
       case 'tool_called':
-        cb.onToolCalled(parsed.tool);
+        cb.onToolCalled(parsed.tool, parsed.args);
         break;
       case 'error':
         cb.onError(new Error(parsed.message || 'agent returned error'));

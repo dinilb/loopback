@@ -87,30 +87,31 @@ export async function onRequest(context: any) {
     env.AI_GATEWAY_MODEL ?? DEFAULT_MODEL,
   );
 
-  // Create OpenAI Agent
+  // Create OpenAI Agent — Loopback
   const agent = new Agent({
-    name: 'Assistant',
+    name: 'Loopback',
     instructions:
-      'You are an EdgeOne Makers OpenAI Agents SDK (TypeScript) starter example: an out-of-the-box Agent template that helps developers quickly run through and validate platform capabilities.\n' +
-      'When introducing yourself, clearly say that you are a demo Agent built with OpenAI Agents SDK on EdgeOne Makers, designed to showcase custom tools, streaming responses, and session memory for developers.\n' +
-      'Use the four custom tools when they help you answer the user concretely. Otherwise answer directly and keep the response brief.\n' +
-      '\n' +
-      'TOOL CALLING RULES — read carefully:\n' +
-      '- Only invoke a tool by its EXACT registered name. The four available tools are:\n' +
-      '  `get_weather`, `get_clothing_advice`, `translate_text`, `text_statistics`.\n' +
-      '- NEVER invent compound names like `get_clothing_weather`. If you need both ' +
-      'weather and clothing advice, call `get_weather` first, then call `get_clothing_advice` ' +
-      'with the weather output as input — two separate tool calls in sequence.\n' +
-      '- If a request needs no tool, answer directly.\n' +
-      '\n' +
-      'RESPONSE STYLE — avoid repeating yourself:\n' +
-      '- Do NOT narrate before, between, or after tool calls (no "I\'ll start by...", ' +
-      '"Great! Now let me...", "Let me give you...").\n' +
-      '- After all tools have returned, write ONE final answer that uses the tool outputs ' +
-      'directly. Do not summarize the same weather/data twice in different formats ' +
-      '(prose + table + raw tool string). Pick one presentation and stick with it.\n' +
-      '- Keep the final answer compact: a short title, the requested facts, and at most one ' +
-      'trailing sentence of context. No "Need anything else?" type filler.',
+      "You are Loopback — an autonomous agent that turns a support inbox into a product roadmap.\n" +
+      "\n" +
+      "When the user sends any message (typically just 'run'), execute this exact workflow:\n" +
+      "  1. Call `list_inbox` ONCE to see all emails.\n" +
+      "  2. For EVERY email, call `read_email(id)`. Read them in order. This is the visible processing step.\n" +
+      "  3. Group similar emails into clusters (same bug, same feature request, same question).\n" +
+      "     - Login/Safari/sign-in complaints → one cluster.\n" +
+      "     - Dark mode / night mode / dark theme requests → one cluster.\n" +
+      "     - CSV export slowness → one cluster.\n" +
+      "     - Pricing questions → one cluster.\n" +
+      "     - Praise and rants without a specific issue → do NOT ticket.\n" +
+      "  4. For each cluster call `create_ticket` ONCE with type (bug|feature|question), title, summary, severity, source_email_ids, and cluster_size.\n" +
+      "     - severity='P0' when cluster_size >= 3 for a bug.\n" +
+      "  5. For the highest-severity BUG (P0), call `create_github_pr` ONCE with a plausible fix.\n" +
+      "  6. Call `finalize_report` ONCE with counts and a one-line 'top_pain' summary.\n" +
+      "\n" +
+      "RULES:\n" +
+      "- Use EXACT tool names: list_inbox, read_email, create_ticket, create_github_pr, finalize_report.\n" +
+      "- Do NOT narrate before, between, or after tool calls. No 'I'll start by...', 'Now I will...', etc.\n" +
+      "- Keep any final text reply under 30 words — the tool calls are the show.\n" +
+      "- Read every email even if you can guess the cluster from the subject.",
     tools: createTools(),
     model: model,
   });
@@ -125,8 +126,17 @@ export async function onRequest(context: any) {
     if (e.type === 'run_item_stream_event' && e.name === 'tool_called') {
       const tool = e.item?.name ?? e.item?.rawItem?.name;
       if (tool) {
-        logger.log(`[stream] tool_called: ${tool}`);
-        return { event: 'tool_called', data: { tool } };
+        // Extract tool arguments so the frontend can render specifically
+        // (e.g. highlight email id, render ticket card).
+        const rawArgs = e.item?.rawItem?.arguments ?? e.item?.arguments;
+        let args: any = null;
+        if (typeof rawArgs === 'string') {
+          try { args = JSON.parse(rawArgs); } catch { args = { _raw: rawArgs }; }
+        } else if (rawArgs && typeof rawArgs === 'object') {
+          args = rawArgs;
+        }
+        logger.log(`[stream] tool_called: ${tool} args=${JSON.stringify(args)}`);
+        return { event: 'tool_called', data: { tool, args } };
       }
     }
     return null;
