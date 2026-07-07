@@ -105,5 +105,5 @@ Built during the Agent Forge Mini Hackathon (July 3, 2026) at Digital Jungle SF.
 ---
 
 **Live demo:** *(paste EdgeOne URL here before submitting)*
-**Source:** *(paste GitHub URL here)*
+**Source:** https://github.com/dinilb/loopback/
 **Submit:** https://tinyurl.com/tencentsubmit
